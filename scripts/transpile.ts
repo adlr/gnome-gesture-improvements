@@ -12,6 +12,7 @@ const GIReplacements: Record<string, string> = {
 	'^@gi-types/gdk(\\d+)?$': 'Gdk',
 	'^@gi-types/st(\\d+)?$': 'St',
 	'^@gi-types/clutter(\\d+)?$': 'Clutter',
+	'^@gi-types/cairo(\\d+)?$': 'cairo',
 	'^@gi-types/gobject(\\d+)?$': 'GObject',
 	'^@gi-types/glib(\\d+)?$': 'GLib',
 	'^@gi-types/gio(\\d+)?$': 'Gio',
