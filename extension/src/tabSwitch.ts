@@ -5,7 +5,7 @@ import { global, imports } from 'gnome-shell';
 import { ExtSettings } from '../constants';
 import { TouchpadSwipeGesture } from './swipeTracker';
 import { pixbuf_get_from_surface } from '@gi-types/gdk4';
-import { File, FileCreateFlags } from '@gi-types/gio2';
+/*import { File, FileCreateFlags } from '@gi-types/gio2';*/
 import Cairo from '@gi-types/cairo1';
 import { Window } from '@gi-types/meta';
 
@@ -14,9 +14,12 @@ const Main = imports.ui.main;
 export class TabSwitchGestureExtension implements ISubExtension {
 	private _connectHandlers: number[];
 	private _touchpadSwipeTracker: typeof TouchpadSwipeGesture.prototype;
+	private _originalCursorPos: number[] | null;
+	private _virtualPointer: Clutter.VirtualInputDevice;
 
 	constructor() {
 		this._connectHandlers = [];
+		this._originalCursorPos = null;
 
 		this._touchpadSwipeTracker = new TouchpadSwipeGesture(
 			(ExtSettings.DEFAULT_SESSION_WORKSPACE_GESTURE ? [4] : [3]),
@@ -26,6 +29,8 @@ export class TabSwitchGestureExtension implements ISubExtension {
 			this._checkAllowedGesture.bind(this),
 		);
 
+		const seat = Clutter.get_default_backend().get_default_seat();
+		this._virtualPointer = seat.create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
 	}
 
 	_checkAllowedGesture(): boolean {
@@ -52,7 +57,7 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		log('gesture begin in tabSwitch file');
 		const getMagicRow = (window: Window): number => {
 			const offsets = {
-				'google-chrome': [3, 10],  // maximized, non-maximized offset from top
+				'google-chrome': [3, 15],  // maximized, non-maximized offset from top
 				'gnome-terminal-server': [33, 33],
 			};
 			const index = window.maximizedHorizontally && window.maximizedVertically ? 0 : 1;
@@ -146,21 +151,27 @@ export class TabSwitchGestureExtension implements ISubExtension {
 					for (let i = 0; i < rect.width; i++) {
 						const boff = i*4;
 						bwvals.push((bytes[boff] + bytes[boff + 1] + bytes[boff + 2]) / (255 * 3));
-						if ((i === 0) || (bwvals[i - 1] !== bwvals[i])) {
-							log('Offset: ' + i + ', val: ' + bwvals[i]);
-						}
 					}
 					
-					const file = File.new_for_path('/tmp/data.buf');
-					const outstream = file.create(FileCreateFlags.NONE, null);
-					pixbuf.save_to_streamv(outstream, 'png', null, null, null);
+					// const file = File.new_for_path('/tmp/data.buf');
+					// const outstream = file.create(FileCreateFlags.NONE, null);
+					// pixbuf.save_to_streamv(outstream, 'png', null, null, null);
 
 
 					// Get mouse position
 					const [mouse_x, mouse_y, _] = global.get_pointer();
 					log('mouse is at ' + mouse_x + ', ' + mouse_y);
-					const seat = Clutter.get_default_backend().get_default_seat();
-					seat.warp_pointer(framerect.x + getStartPosition(bwvals, focused_window), framerect.y + kMagicRow);
+					this._originalCursorPos = [mouse_x, mouse_y];
+					//const seat = Clutter.get_default_backend().get_default_seat();
+					//seat.warp_pointer(framerect.x + getStartPosition(bwvals, focused_window), framerect.y + kMagicRow);
+					const new_x = framerect.x + getStartPosition(bwvals, focused_window);
+					const new_y = framerect.y + kMagicRow;
+					log('warping cursor to ' + new_x + ', ' + new_y);
+					this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, new_x, new_y);
+
+					const [out_mouse_x, out_mouse_y, __] = global.get_pointer();
+					log('mouse is at ' + out_mouse_x + ', ' + out_mouse_y);
+
 
 					// const tex = wa.get_texture();
 					// const itex = tex.get_texture();
@@ -177,15 +188,42 @@ export class TabSwitchGestureExtension implements ISubExtension {
 	}
 
 	_gestureUpdate(_gesture: never, _time: never, delta: number, distance: number): void {
-		log('gesture update: ' + distance + ', ' + delta);
+		if (this._originalCursorPos === null) {
+			delta += distance;
+			return;
+		}
+		//log('gesture update: ' + distance + ', ' + delta);
+		const [mouse_x, mouse_y, _] = global.get_pointer();
+		//log('mouse is at ' + mouse_x + ', ' + mouse_y);
+		// const seat = Clutter.get_default_backend().get_default_seat();
+		// seat.warp_pointer(mouse_x + (delta | 0), mouse_y);
+		this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, Math.round(mouse_x + delta), mouse_y);
+
 	}
 
 	_gestureEnd(): void {
-		log('gesture end');
+		if (this._originalCursorPos === null)
+			return;
+		//log('gesture end');
+		// Do a click
+		//const seat = Clutter.get_default_backend().get_default_seat();
+
+		// const press = Clutter.Event.new(Clutter.EventType.BUTTON_PRESS);
+		// press.set_button(Clutter.BUTTON_PRIMARY);
+		// seat.handle_event_post(press);
+
+		// const release = Clutter.Event.new(Clutter.EventType.BUTTON_RELEASE);
+		// release.set_button(Clutter.BUTTON_PRIMARY);
+		// seat.handle_event_post(release);
+
+		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
+		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
+		this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, this._originalCursorPos[0], this._originalCursorPos[1]);
+		//seat.warp_pointer(this._originalCursorPos[0], this._originalCursorPos[1]);	
 		this._reset();
 	}
 
 	private _reset() {
-		log('reset');
+		this._originalCursorPos = null;	
 	}
 }

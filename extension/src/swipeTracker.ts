@@ -157,7 +157,7 @@ export const TouchpadSwipeGesture = registerClass({
 		const time = event.get_time();
 
 		const [x, y] = event.get_coords();
-		const [dx, dy] = event.get_gesture_motion_delta_unaccelerated() as [number, number];
+		const [dx, dy] = event.get_gesture_motion_delta() as [number, number];
 
 		if (this._state === TouchpadState.NONE) {
 			if (dx === 0 && dy === 0)
