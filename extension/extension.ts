@@ -4,6 +4,7 @@ import { AllSettingsKeys, GioSettings, PinchGestureType } from './common/setting
 import * as Constants from './constants';
 import { AltTabConstants, ExtSettings, TouchpadConstants } from './constants';
 import { AltTabGestureExtension } from './src/altTab';
+import { TabSwitchGestureExtension } from './src/tabSwitch';
 import { ForwardBackGestureExtension } from './src/forwardBack';
 import { GestureExtension } from './src/gestures';
 import { OverviewRoundTripGestureExtension } from './src/overviewRoundTrip';
@@ -77,7 +78,10 @@ class Extension {
 
 		if (this.settings.get_boolean('enable-alttab-gesture'))
 			this._extensions.push(new AltTabGestureExtension());
-		
+
+		if (this.settings.get_boolean('enable-tabswitch-gesture'))
+			this._extensions.push(new TabSwitchGestureExtension());
+
 		if (this.settings.get_boolean('enable-forward-back-gesture')) {
 			const appForwardBackKeyBinds = this.settings.get_value('forward-back-application-keyboard-shortcuts').deepUnpack();
 			this._extensions.push(new ForwardBackGestureExtension(appForwardBackKeyBinds));

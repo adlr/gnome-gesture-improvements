@@ -83,6 +83,7 @@ function bindPrefsSettings(builder: GtkBuilder, settings: Gio.Settings) {
 	bind_boolean_value('default-overview-gesture-direction', settings, builder, Gio.SettingsBindFlags.INVERT_BOOLEAN);
 
 	bind_boolean_value('enable-alttab-gesture', settings, builder);
+	bind_boolean_value('enable-tabswitch-gesture', settings, builder);
 	bind_boolean_value('enable-window-manipulation-gesture', settings, builder);
 	bind_boolean_value('allow-minimize-window', settings, builder);
 

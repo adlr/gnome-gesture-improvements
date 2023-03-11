@@ -31,6 +31,7 @@ export type BooleanSettingsKeys =
     'allow-minimize-window' |
     'follow-natural-scroll' |
     'enable-alttab-gesture' |
+    'enable-tabswitch-gesture' |
     'enable-forward-back-gesture' |
     'enable-window-manipulation-gesture' |
     'default-overview-gesture-direction'

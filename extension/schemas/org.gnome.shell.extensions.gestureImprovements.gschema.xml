@@ -50,6 +50,10 @@
       <default>true</default>
       <description>Enable alttab gesture</description>
     </key>
+    <key name='enable-tabswitch-gesture' type='b'>
+      <default>false</default>
+      <description>Enable tabswitch gesture</description>
+    </key>
     <key name='enable-forward-back-gesture' type='b'>
       <default>false</default>
       <description>Enable forward/back keybinding gesture</description>

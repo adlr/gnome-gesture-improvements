@@ -61,6 +61,19 @@
           </object>
         </child>
         
+        <!-- TabSwitching Gesture -->
+        <child>
+          <object class="AdwActionRow">
+            <property name="title" translatable="yes">Tab switching</property>
+            <child>
+              <object class="GtkSwitch" id="enable-tabswitch-gesture">
+                <property name="valign">center</property>
+                <property name="active">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        
         <!-- Window manipulation Gesture -->
         <child>
           <object class="AdwActionRow">
