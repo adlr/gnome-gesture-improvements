@@ -37,7 +37,7 @@ export const TouchpadSwipeGesture = registerClass({
 		),
 	},
 	Signals: {
-		'begin': { param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE] },
+		'begin': { param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE] },
 		'update': { param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE, GObject.TYPE_DOUBLE] },
 		'end': { param_types: [GObject.TYPE_UINT, GObject.TYPE_DOUBLE] },
 	},
@@ -186,7 +186,7 @@ export const TouchpadSwipeGesture = registerClass({
 
 				if (gestureOrientation === this.orientation) {
 					this._state = TouchpadState.HANDLING;
-					this.emit('begin', time, x, y);
+					this.emit('begin', time, x, y, cdx, cdy);
 				} else {
 					this._state = TouchpadState.IGNORED;
 					return Clutter.EVENT_PROPAGATE;

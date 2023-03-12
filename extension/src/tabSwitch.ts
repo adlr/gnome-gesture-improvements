@@ -8,8 +8,14 @@ import { pixbuf_get_from_surface } from '@gi-types/gdk4';
 /*import { File, FileCreateFlags } from '@gi-types/gio2';*/
 import Cairo from '@gi-types/cairo1';
 import { Window } from '@gi-types/meta';
+/*import { Pixbuf } from 'gi://GdkPixbuf';*/
+/*import Meta from '@gi-types/meta';*/
 
 const Main = imports.ui.main;
+
+// function locateRightChromium(pixbuf: Pixbuf) {
+
+// }
 
 export class TabSwitchGestureExtension implements ISubExtension {
 	private _connectHandlers: number[];
@@ -53,12 +59,13 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		this._connectHandlers = [];
 	}
 
-	_gestureBegin(): void {
-		log('gesture begin in tabSwitch file');
+	_gestureBegin(_time: number, _unused: string, _x_in: number, _y_in: number, dx_in: number, dy_in: number): void {
+		log('gesture begin: ' + dx_in + ', ' + dy_in);
 		const getMagicRow = (window: Window): number => {
 			const offsets = {
 				'google-chrome': [3, 15],  // maximized, non-maximized offset from top
-				'gnome-terminal-server': [33, 33],
+				'firefox': [7, 7],
+				'gnome-terminal-server': [52, 52],
 			};
 			const index = window.maximizedHorizontally && window.maximizedVertically ? 0 : 1;
 			const wmclass = window.wmClass.toLowerCase();
@@ -72,12 +79,21 @@ export class TabSwitchGestureExtension implements ISubExtension {
 			return 100;  // default when not found
 		};
 
-		const getStartPosition = (pixels: number[], window: Window): number => {
+		const getStartPosition = (pixels: number[], window: Window, movingRight: boolean): number => {
+			const candidateToStr = (candidate: number[]): string => {
+				return 'val: ' + candidate[0] + ', [' + candidate[1] + ', ' + candidate[2] + ']';
+			};
 			// Pixels to exclude on left/right of an app
 			// const exclude = {
 			// 	'google-chrome': [0, 100],
 			// };
 			// Idea: get center of contiguous block of pixels, at least of size 5, that's closest to 0 or 1
+			// Assume third pixel from left if background color. look for brightest that's not background
+			if (pixels.length < 3) {
+				return 0;
+			}
+			const bg = pixels[2];
+			log('bg: ' + bg);
 			const group = pixels.reduce((accum: number[][], current: number, index: number): number[][] => {
 				if (accum.length === 0 || accum[accum.length - 1][0] !== current) {
 					accum.push([current, index, index]);
@@ -85,16 +101,25 @@ export class TabSwitchGestureExtension implements ISubExtension {
 					accum[accum.length - 1][2] = index;
 				}
 				return accum;
-			}, []).map(elt => {  // convert color so close to extreme maps to more positive
-				elt[0] = Math.abs(elt[0] - 0.5);
-				return elt;
+			}, []).filter(elt => {
+				return Math.abs(elt[0] - bg) > 0.01 && (elt[2] - elt[1] > 4);
+			// }).map(elt => {
+			// 	elt[0] = Math.abs(elt[0] - bg);
+			// 	return elt;
 			}).reduce((prev: number[], current: number[]): number[] => {
+				log('prev: ' + candidateToStr(prev));
+				log('curr: ' + candidateToStr(current));
 				if (prev[0] > current[0])
 					return prev;
 				return current;
 			});
 
-			const ret = ((group[1] + group[2]) / 2) | 0;
+			const size = group[2] - group[1] + 1;
+			let ret = ((group[1] + group[2]) / 2) | 0;
+			if (size > 10) {
+				ret = movingRight ? group[2] - 5 : group[1] + 5;
+			}
+
 			log('Move cursor to offset ' + ret + ' max: ' + window.maximizedHorizontally);
 			return ret;
 		};
@@ -164,14 +189,13 @@ export class TabSwitchGestureExtension implements ISubExtension {
 					this._originalCursorPos = [mouse_x, mouse_y];
 					//const seat = Clutter.get_default_backend().get_default_seat();
 					//seat.warp_pointer(framerect.x + getStartPosition(bwvals, focused_window), framerect.y + kMagicRow);
-					const new_x = framerect.x + getStartPosition(bwvals, focused_window);
+					const new_x = framerect.x + getStartPosition(bwvals, focused_window, dx_in > 0);
 					const new_y = framerect.y + kMagicRow;
 					log('warping cursor to ' + new_x + ', ' + new_y);
 					this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, new_x, new_y);
 
 					const [out_mouse_x, out_mouse_y, __] = global.get_pointer();
 					log('mouse is at ' + out_mouse_x + ', ' + out_mouse_y);
-
 
 					// const tex = wa.get_texture();
 					// const itex = tex.get_texture();
@@ -192,6 +216,7 @@ export class TabSwitchGestureExtension implements ISubExtension {
 			delta += distance;
 			return;
 		}
+
 		//log('gesture update: ' + distance + ', ' + delta);
 		const [mouse_x, mouse_y, _] = global.get_pointer();
 		//log('mouse is at ' + mouse_x + ', ' + mouse_y);
@@ -219,7 +244,8 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
 		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
 		this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, this._originalCursorPos[0], this._originalCursorPos[1]);
-		//seat.warp_pointer(this._originalCursorPos[0], this._originalCursorPos[1]);	
+		//seat.warp_pointer(this._originalCursorPos[0], this._originalCursorPos[1]);
+
 		this._reset();
 	}
 
