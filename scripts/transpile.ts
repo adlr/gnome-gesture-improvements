@@ -10,6 +10,7 @@ import { hideBin } from 'yargs/helpers';
 const GIReplacements: Record<string, string> = {
 	'^@gi-types/gtk(\\d+)?$': 'Gtk',
 	'^@gi-types/gdk(\\d+)?$': 'Gdk',
+	'^@gi-types/gdkpixbuf(\\d+)?$': 'GdkPixbuf',
 	'^@gi-types/st(\\d+)?$': 'St',
 	'^@gi-types/clutter(\\d+)?$': 'Clutter',
 	'^@gi-types/cairo(\\d+)?$': 'cairo',
