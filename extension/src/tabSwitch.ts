@@ -14,8 +14,9 @@ import * as GdkPixbuf from '@gi-types/gdkpixbuf2';
 const Main = imports.ui.main;
 
 function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): number | null {
-	// returns value: 0 -> black, 1 -> white
 	const bytes = pixbuf.get_pixels();
+
+	// returns value in range: 0 -> black, 1 -> white
 	const getPixel = (x: number, y: number): number => {
 		if (x >= pixbuf.width || y >= pixbuf.height || x < 0 || y < 0) {
 			log('Invalid request of getPixel. Out of bounds!');
@@ -26,17 +27,21 @@ function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): numb
 		return ret;
 	};
 
+	const pixelValuesNear = (val_a: number, val_b: number): boolean => {
+		const kMaxDarkColorDelta = 0.15;
+		return Math.abs(val_a - val_b) < kMaxDarkColorDelta;
+	};
 	const getLeftCenterRight = (x_init: number, y_init: number): [number, number, number] => {
 		let x_min = x_init;
 		let x_max = x_init;
 		const value = getPixel(x_init, y_init);
 		while (x_min > 0) {
-			if (getPixel(x_min - 1, y_init) !== value)
+			if (!pixelValuesNear(getPixel(x_min - 1, y_init), value))
 				break;
 			x_min--;
 		}
 		while (x_max < (pixbuf.width - 1)) {
-			if (getPixel(x_max + 1, y_init) !== value)
+			if (!pixelValuesNear(getPixel(x_max + 1, y_init), value))
 				break;
 			x_max++;
 		}
@@ -47,12 +52,12 @@ function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): numb
 		let y_max = y_init;
 		const value = getPixel(x_init, y_init);
 		while (y_min > 0) {
-			if (getPixel(x_init, y_min - 1) !== value)
+			if (!pixelValuesNear(getPixel(x_init, y_min - 1), value))
 				break;
 			y_min--;
 		}
 		while (y_max < (pixbuf.height - 1)) {
-			if (getPixel(x_init, y_max + 1) !== value)
+			if (!pixelValuesNear(getPixel(x_init, y_max + 1), value))
 				break;
 			y_max++;
 		}
@@ -152,8 +157,9 @@ function getBounds(window: Window, pixbuf: GdkPixbuf.Pixbuf): [number, number] {
 	const ret : [number, number] = [frame.x, frame.x + frame.width - 1];
 	if (window.wmClass.toLowerCase().startsWith('google-chrome')) {
 		const maximized = window.maximizedHorizontally && window.maximizedVertically;
-		if (!maximized)
-			ret[0] = frame.x + 8;
+		// if (!maximized)
+		// 	ret[0] = frame.x + 8;
+		ret[0] = frame.x + 40;
 		const right = locateRightChromium(pixbuf, maximized);
 		if (right !== null)
 			ret[1] = frame.x + right;
@@ -169,6 +175,9 @@ export class TabSwitchGestureExtension implements ISubExtension {
 	// When doing the gesture, the min and max x locations allowed
 	private _bounds: number[] | null;
 	private _lastNewX: number;
+	private _shiftCapture: number;
+	private _shiftCapture2: number;
+	private _skipFinalClick: boolean;
 
 	constructor() {
 		this._connectHandlers = [];
@@ -186,6 +195,9 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		this._virtualPointer = seat.create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
 		this._bounds = null;
 		this._lastNewX = -1;
+		this._shiftCapture = 0;
+		this._shiftCapture2 = 0;
+		this._skipFinalClick = false;
 	}
 
 	_checkAllowedGesture(): boolean {
@@ -208,11 +220,25 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		this._connectHandlers = [];
 	}
 
+	_onKeyEvent(_stage : Clutter.Actor, event : Clutter.Event) {
+		const type = event.type();
+		console.log('got event of type: ' + type);
+		if (type !== Clutter.EventType.KEY_PRESS && type !== Clutter.EventType.KEY_RELEASE)
+			return Clutter.EVENT_PROPAGATE;
+		const key = event.get_key_symbol();
+		console.log('Got a key: ' + key);
+		if (key !== Clutter.KEY_Shift_L && key !== Clutter.KEY_Shift_R)
+			return Clutter.EVENT_PROPAGATE;
+
+		this._shiftChanged(type === Clutter.EventType.KEY_PRESS);
+		return Clutter.EVENT_PROPAGATE;
+	}
+
 	_gestureBegin(_time: number, _unused: string, _x_in: number, _y_in: number, dx_in: number, _dy_in: number): void {
 		//log('gesture begin: ' + dx_in + ', ' + dy_in);
 		const getMagicRow = (window: Window): number => {
 			const offsets = {
-				'google-chrome': [3, 15],  // maximized, non-maximized offset from top
+				'google-chrome': [8, 8],  // maximized, non-maximized offset from top
 				'firefox': [7, 7],
 				'gnome-terminal-server': [52, 52],
 			};
@@ -350,7 +376,6 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		// const outstream = file.create(FileCreateFlags.NONE, null);
 		// pixbuf.save_to_streamv(outstream, 'png', null, null, null);
 
-
 		// Get mouse position
 		const [mouse_x, mouse_y, _] = global.get_pointer();
 		// log('mouse is at ' + mouse_x + ', ' + mouse_y);
@@ -366,6 +391,25 @@ export class TabSwitchGestureExtension implements ISubExtension {
 
 		// const [out_mouse_x, out_mouse_y, __] = global.get_pointer();
 		// log('mouse is at ' + out_mouse_x + ', ' + out_mouse_y);
+
+		// Start capturing for shift key
+		// this._shiftCapture = global.stage.connect('captured-event', (_stage : Clutter.Actor, event : Clutter.Event) => {
+		// 	const type = event.type();
+		// 	console.log('got event of type: ' + type);
+		// 	if (type !== Clutter.EventType.KEY_PRESS && type !== Clutter.EventType.KEY_RELEASE)
+		// 		return Clutter.EVENT_PROPAGATE;
+		// 	const key = event.get_key_symbol();
+		// 	console.log('Got a key: ' + key);
+		// 	if (key !== Clutter.KEY_Shift_L && key !== Clutter.KEY_Shift_R)
+		// 		return Clutter.EVENT_PROPAGATE;
+
+		// 	this._shiftChanged(type === Clutter.EventType.KEY_PRESS);
+		// 	return Clutter.EVENT_PROPAGATE;
+		// });
+		this._shiftCapture = global.stage.connect('key-press-event', this._onKeyEvent.bind(this));
+		this._shiftCapture2 = global.stage.connect('key-release-event', this._onKeyEvent.bind(this));
+		console.log(`shift capture: ${this._shiftCapture}, ${this._shiftCapture2}`);
+
 
 		// const tex = wa.get_texture();
 		// const itex = tex.get_texture();
@@ -386,7 +430,15 @@ export class TabSwitchGestureExtension implements ISubExtension {
 		//log('mouse is at ' + mouse_x + ', ' + mouse_y);
 		this._lastNewX = Math.max(this._bounds[0], Math.min(this._bounds[1], this._lastNewX + delta));
 		this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, Math.round(this._lastNewX), mouse_y);
+	}
 
+	_shiftChanged(down: boolean): void {
+		if (down) {
+			this._skipFinalClick = true;
+			this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
+		} else {
+			this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
+		}
 	}
 
 	_gestureEnd(): void {
@@ -394,15 +446,25 @@ export class TabSwitchGestureExtension implements ISubExtension {
 			return;
 		//log('gesture end');
 		// Do a click
-		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
-		this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
-		this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, this._originalCursorPos[0], this._originalCursorPos[1]);
-
+		if (!this._skipFinalClick) {
+			this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.PRESSED);
+			this._virtualPointer.notify_button(Clutter.CURRENT_TIME, Clutter.BUTTON_PRIMARY, Clutter.ButtonState.RELEASED);
+			this._virtualPointer.notify_absolute_motion(Clutter.CURRENT_TIME, this._originalCursorPos[0], this._originalCursorPos[1]);
+		}
 		this._reset();
 	}
 
 	private _reset() {
 		this._originalCursorPos = null;	
 		this._bounds = null;
+		if (this._shiftCapture) {
+			global.stage.disconnect(this._shiftCapture);
+			this._shiftCapture = 0;
+		}
+		if (this._shiftCapture2) {
+			global.stage.disconnect(this._shiftCapture2);
+			this._shiftCapture2 = 0;
+		}
+		this._skipFinalClick = false;
 	}
 }
