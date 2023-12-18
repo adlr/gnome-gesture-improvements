@@ -28,7 +28,7 @@ function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): numb
 	};
 
 	const pixelValuesNear = (val_a: number, val_b: number): boolean => {
-		const kMaxDarkColorDelta = 0.15;
+		const kMaxDarkColorDelta = 0.2;
 		return Math.abs(val_a - val_b) < kMaxDarkColorDelta;
 	};
 	const getLeftCenterRight = (x_init: number, y_init: number): [number, number, number] => {
@@ -81,8 +81,9 @@ function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): numb
 		if (s3_width < kMinWidth || s3_width > kMaxWidth)
 			return false;
 		// Make sure roughly square
-		if (Math.abs(s2_height - s3_width) > 3)
+		if (Math.abs(s2_height - s3_width) > 3) {
 			return false;
+		}
 		// Now, check line thickness at extremes
 		// [x, y, scan_horiz]
 		const start_coords : [number, number, boolean][] = [
@@ -149,7 +150,7 @@ function locateRightChromium(pixbuf: GdkPixbuf.Pixbuf, maximized: boolean): numb
 		log('could not find non-bg color after plus');
 		return null;
 	}
-	return x - 2;
+	return x - 5;
 }
 
 function getBounds(window: Window, pixbuf: GdkPixbuf.Pixbuf): [number, number] {
